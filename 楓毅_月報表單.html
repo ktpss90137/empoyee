@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>楓毅 · 斜槓夥伴月報填寫</title>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'PingFang TC', 'Microsoft JhengHei', 'Noto Sans TC', sans-serif;
+      background: #F0F7F4;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .top-header {
+      background: linear-gradient(135deg, #1B4332, #2D6A4F);
+      color: white;
+      padding: 20px 24px 18px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: 0 3px 12px rgba(0,0,0,0.2);
+    }
+    .header-row { display: flex; align-items: center; justify-content: space-between; }
+    .header-logo { display: flex; align-items: center; gap: 10px; }
+    .header-logo .emoji { font-size: 26px; }
+    .header-title { font-size: 1rem; font-weight: 800; }
+    .header-sub   { font-size: 11px; color: #A7F3D0; margin-top: 1px; }
+    .score-chip {
+      background: rgba(255,255,255,0.15);
+      border: 1.5px solid rgba(255,255,255,0.3);
+      border-radius: 12px;
+      padding: 6px 16px;
+      text-align: center;
+    }
+    .score-chip .label { font-size: 10px; color: #A7F3D0; }
+    .score-chip .value { font-size: 1.4rem; font-weight: 900; color: white; line-height: 1.1; }
+
+    /* Container */
+    .container { max-width: 640px; margin: 0 auto; padding: 20px 16px 40px; }
+
+    /* Card */
+    .card {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+      padding: 20px;
+      margin-bottom: 14px;
+    }
+    .card-title {
+      font-weight: 800;
+      color: #1F2937;
+      font-size: 15px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    /* Form inputs */
+    .form-label { font-size: 13px; color: #4B5563; font-weight: 600; margin-bottom: 6px; display: block; }
+    .form-input {
+      border: 2px solid #E5E7EB;
+      border-radius: 10px;
+      padding: 11px 14px;
+      width: 100%;
+      font-size: 15px;
+      transition: border-color .2s;
+      background: white;
+      font-family: inherit;
+    }
+    .form-input:focus { outline: none; border-color: #52B788; }
+    .form-input::placeholder { color: #9CA3AF; }
+    .name-hint {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #EF4444;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Month selector tabs */
+    .month-row { display: flex; gap: 8px; }
+    .month-row select { flex: 1; }
+
+    /* Progress bar */
+    .progress-wrap { margin-bottom: 4px; }
+    .progress-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; }
+    .progress-bar { height: 10px; border-radius: 99px; background: #E5E7EB; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 99px; transition: width .4s ease; }
+    .progress-ticks { display: flex; justify-content: space-between; font-size: 10px; color: #9CA3AF; margin-top: 4px; }
+
+    /* KPI Section */
+    .kpi-section {
+      border: 2px solid #E9F5EE;
+      border-radius: 13px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      background: #F8FDF9;
+    }
+    .kpi-cat-header {
+      font-weight: 800;
+      color: #1B4332;
+      font-size: 14px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1.5px solid #C6F6D5;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .kpi-cat-score {
+      font-size: 12px;
+      color: #6B7280;
+      font-weight: 600;
+    }
+    .kpi-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .kpi-item:last-child { margin-bottom: 0; }
+    .kpi-item-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; padding-right: 10px; }
+    .kpi-item-label { font-size: 14px; color: #374151; font-weight: 500; }
+    .kpi-item-pts { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 99px; display: inline-block; width: fit-content; }
+    .kpi-ctrl { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .qty-btn {
+      width: 32px; height: 32px; border-radius: 50%;
+      border: 2px solid #86EFAC; color: #2D6A4F;
+      font-size: 18px; font-weight: 700; cursor: pointer;
+      background: white; display: flex; align-items: center; justify-content: center;
+      transition: all .15s; line-height: 1; flex-shrink: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .qty-btn:hover, .qty-btn:active { background: #D1FAE5; }
+    .qty-input {
+      width: 52px; text-align: center;
+      border: 2px solid #B7E4C7; border-radius: 8px;
+      padding: 5px 4px; font-size: 16px; font-weight: 800;
+      font-family: inherit;
+    }
+    .qty-input:focus { outline: none; border-color: #52B788; }
+
+    /* Notes */
+    textarea.form-input { resize: vertical; min-height: 80px; font-size: 14px; }
+
+    /* Submit button */
+    .btn-submit {
+      background: linear-gradient(135deg, #1B4332, #2D6A4F);
+      color: white; border: none; width: 100%;
+      padding: 16px; border-radius: 14px;
+      font-size: 16px; font-weight: 800;
+      cursor: pointer; transition: all .2s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 4px 15px rgba(27,67,50,0.35);
+    }
+    .btn-submit:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(27,67,50,0.4); }
+    .btn-submit:active { transform: translateY(0); }
+    .btn-submit:disabled { background: #9CA3AF; box-shadow: none; cursor: not-allowed; transform: none; }
+
+    /* Success screen */
+    #screen-success {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #1B4332, #2D6A4F, #52B788);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+      text-align: center;
+    }
+    .success-card {
+      background: white;
+      border-radius: 24px;
+      padding: 2.5rem 2rem;
+      max-width: 380px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+    .success-icon { font-size: 72px; margin-bottom: 16px; }
+    .success-title { font-size: 1.4rem; font-weight: 800; color: #1F2937; margin-bottom: 8px; }
+    .success-sub { font-size: 14px; color: #6B7280; line-height: 1.6; }
+    .score-display {
+      background: #F0FDF4;
+      border: 2px solid #BBF7D0;
+      border-radius: 14px;
+      padding: 16px;
+      margin: 20px 0;
+    }
+    .score-display .big { font-size: 3rem; font-weight: 900; }
+    .score-display .label { font-size: 13px; color: #6B7280; margin-top: 4px; }
+    .btn-again {
+      background: #2D6A4F; color: white; border: none;
+      width: 100%; padding: 13px; border-radius: 11px;
+      font-size: 15px; font-weight: 700; cursor: pointer;
+      margin-top: 8px; transition: background .2s;
+    }
+    .btn-again:hover { background: #1B4332; }
+
+    /* Setup screen */
+    #screen-setup {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #1B4332, #52B788);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .setup-card {
+      background: white;
+      border-radius: 20px;
+      padding: 2rem;
+      max-width: 460px;
+      width: 100%;
+    }
+
+    /* Status chip */
+    .status-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 12px; border-radius: 99px;
+      font-size: 12px; font-weight: 700;
+    }
+    .chip-ok   { background: #D1FAE5; color: #065F46; }
+    .chip-warn { background: #FEF9C3; color: #854D0E; }
+    .chip-bad  { background: #FEE2E2; color: #991B1B; }
+
+    /* Floating score for mobile */
+    @media (max-width: 480px) {
+      .score-chip .value { font-size: 1.2rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===== FIREBASE SETUP (FALLBACK) ===== -->
+<div id="screen-setup" style="display:none; min-height:100vh; background:linear-gradient(135deg,#1B4332,#52B788); align-items:center; justify-content:center; padding:20px;">
+  <div class="setup-card">
+    <div style="text-align:center;margin-bottom:22px;">
+      <div style="font-size:44px;margin-bottom:8px;">🍁</div>
+      <h1 style="font-size:1.2rem;font-weight:800;color:#1F2937;">楓毅月報表單</h1>
+      <p style="color:#6B7280;font-size:13px;margin-top:4px;">請輸入 Firebase 連線設定</p>
+    </div>
+    <div style="margin-bottom:12px;"><label style="font-size:13px;font-weight:600;color:#4B5563;display:block;margin-bottom:5px;">API Key</label><input id="cfg_apiKey" class="form-input" placeholder="AIzaSy..."></div>
+    <div style="margin-bottom:12px;"><label style="font-size:13px;font-weight:600;color:#4B5563;display:block;margin-bottom:5px;">Project ID</label><input id="cfg_projectId" class="form-input" placeholder="my-project-id"></div>
+    <div style="margin-bottom:12px;"><label style="font-size:13px;font-weight:600;color:#4B5563;display:block;margin-bottom:5px;">Auth Domain</label><input id="cfg_authDomain" class="form-input" placeholder="my-project.firebaseapp.com"></div>
+    <div style="margin-bottom:12px;"><label style="font-size:13px;font-weight:600;color:#4B5563;display:block;margin-bottom:5px;">Storage Bucket</label><input id="cfg_storageBucket" class="form-input" placeholder="my-project.appspot.com"></div>
+    <div style="margin-bottom:12px;"><label style="font-size:13px;font-weight:600;color:#4B5563;display:block;margin-bottom:5px;">Messaging Sender ID</label><input id="cfg_messagingSenderId" class="form-input" placeholder="123456789"></div>
+    <div style="margin-bottom:18px;"><label style="font-size:13px;font-weight:600;color:#4B5563;display:block;margin-bottom:5px;">App ID</label><input id="cfg_appId" class="form-input" placeholder="1:123456:web:abcdef"></div>
+    <button onclick="saveSetupConfig()" style="background:#2D6A4F;color:white;border:none;width:100%;padding:13px;border-radius:11px;font-size:15px;font-weight:700;cursor:pointer;">連接 Firebase</button>
+    <div id="setupErr" style="color:#DC2626;font-size:13px;text-align:center;margin-top:10px;display:none;"></div>
+  </div>
+</div>
+
+<!-- ===== MAIN FORM ===== -->
+<div id="screen-form" style="display:none;">
+  <!-- Header -->
+  <div class="top-header">
+    <div class="header-row">
+      <div class="header-logo">
+        <span class="emoji">🍁</span>
+        <div>
+          <div class="header-title">楓毅斜槓夥伴</div>
+          <div class="header-sub">月報填寫系統</div>
+        </div>
+      </div>
+      <div class="score-chip">
+        <div class="label">本次分數</div>
+        <div class="value" id="headerScore">0 分</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- Basic Info -->
+    <div class="card">
+      <div class="card-title">📋 基本資訊</div>
+
+      <!-- Full Name -->
+      <div style="margin-bottom:16px;">
+        <label class="form-label">夥伴全名 *</label>
+        <input type="text" id="partnerName" class="form-input"
+               placeholder="請填寫您的全名，例：張小明"
+               oninput="onNameInput()"
+               autocomplete="name"
+               autocorrect="off"
+               spellcheck="false">
+        <div class="name-hint">
+          ⚠ 請務必填寫「全名」，須與夥伴名冊一致，以確保分數正確統計
+        </div>
+      </div>
+
+      <!-- Month -->
+      <div>
+        <label class="form-label">填報月份 *</label>
+        <div class="month-row">
+          <select id="formYear" class="form-input"></select>
+          <select id="formMonth" class="form-input">
+            <option value="1">1月</option><option value="2">2月</option>
+            <option value="3">3月</option><option value="4">4月</option>
+            <option value="5">5月</option><option value="6">6月</option>
+            <option value="7">7月</option><option value="8">8月</option>
+            <option value="9">9月</option><option value="10">10月</option>
+            <option value="11">11月</option><option value="12">12月</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Score Progress -->
+    <div class="card">
+      <div class="progress-wrap">
+        <div class="progress-label">
+          <span style="font-weight:700;color:#374151;font-size:14px;">本月進度</span>
+          <span id="statusChip" class="status-chip chip-bad">⚠ 未達標</span>
+        </div>
+        <div class="progress-bar">
+          <div id="progressFill" class="progress-fill" style="width:0%;background:linear-gradient(90deg,#FCA5A5,#EF4444);"></div>
+        </div>
+        <div class="progress-ticks">
+          <span>0</span>
+          <span>10分（月達標線）</span>
+          <span>100分（超額獎金）</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI Sections -->
+    <div id="kpiSections"></div>
+
+    <!-- Notes -->
+    <div class="card">
+      <div class="card-title">📝 本月備注（選填）</div>
+      <textarea id="formNotes" class="form-input"
+        placeholder="可填寫本月斜槓心得、遇到的挑戰、下月計畫..."></textarea>
+    </div>
+
+    <!-- Submit -->
+    <button id="submitBtn" class="btn-submit" onclick="submitReport()">
+      <span>📤</span> 送出本月月報
+    </button>
+
+    <p style="text-align:center;color:#9CA3AF;font-size:12px;margin-top:16px;">
+      送出後資料將即時同步至管理後台 🍁
+    </p>
+
+  </div>
+</div>
+
+<!-- ===== SUCCESS SCREEN ===== -->
+<div id="screen-success" style="display:none;min-height:100vh;background:linear-gradient(135deg,#1B4332,#2D6A4F,#52B788);flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;">
+  <div class="success-card">
+    <div class="success-icon" id="successIcon">🎉</div>
+    <div class="success-title" id="successTitle">月報提交成功！</div>
+    <div class="success-sub" id="successSub">您的本月KPI已成功同步至楓毅管理後台</div>
+
+    <div class="score-display">
+      <div class="big" id="successScore" style="color:#2D6A4F;">0 分</div>
+      <div class="label" id="successScoreLabel">本月分數</div>
+    </div>
+
+    <div id="successExtra" style="margin-bottom:16px;"></div>
+
+    <button class="btn-again" onclick="resetForm()">再填一份月報</button>
+  </div>
+  <p style="color:rgba(255,255,255,0.5);font-size:12px;margin-top:24px;">楓毅斜槓夥伴系統 · 每月成長，共同前進 🌱</p>
+</div>
+
+<script>
+// =====================================================================
+// ⚙️  KPI 設定（與管理後台相同）
+// =====================================================================
+const KPI_CONFIG = [
+  { category:'斜槓實戰（線下）', icon:'⚡', color:'#3B82F6', items:[
+    {key:'talentAnalysis', label:'天賦測驗解析', pts:1},
+    {key:'trialService',   label:'斜槓體驗服務', pts:2},
+    {key:'paidService',    label:'斜槓收費服務', pts:3}]},
+  { category:'活動企劃', icon:'🎯', color:'#8B5CF6', items:[
+    {key:'clubAssist',    label:'協助俱樂部',   pts:1},
+    {key:'clubCooperate', label:'與俱樂部合作', pts:3}]},
+  { category:'學員推進（小楓葉）', icon:'🍃', color:'#10B981', items:[
+    {key:'studentClub',        label:'參與俱樂部', pts:1},
+    {key:'studentAfterCourse', label:'參與課後課', pts:1},
+    {key:'studentMonetize',    label:'參與變現班', pts:2}]},
+  { category:'銷售服務', icon:'💰', color:'#F59E0B', items:[
+    {key:'salesClubSingle',    label:'俱樂部單次',   pts:1},
+    {key:'salesClubPackage',   label:'俱樂部套票',   pts:3},
+    {key:'salesHalfDay',       label:'斜槓半日訪',   pts:1},
+    {key:'salesWorkshop',      label:'斜槓工作坊',   pts:5},
+    {key:'salesMonetize',      label:'斜槓變現班',   pts:2},
+    {key:'salesFinanceCoach',  label:'財務陪跑',     pts:3},
+    {key:'salesOverseas',      label:'海外資產配置', pts:10}]},
+  { category:'出席參與', icon:'🏆', color:'#EF4444', items:[
+    {key:'attendClub',             label:'俱樂部',     pts:1},
+    {key:'attendHalfDay',          label:'半日訪',     pts:1},
+    {key:'attendGroupMeet',        label:'小組聚會',   pts:1},
+    {key:'attendWorkshopSupport',  label:'工作坊陪伴', pts:3}]}
+];
+const CONFIG_KEY = 'fm_firebase_config';
+
+let db = null;
+
+// =====================================================================
+// Firebase Setup
+// =====================================================================
+function loadConfig() {
+  try { return JSON.parse(localStorage.getItem(CONFIG_KEY) || 'null'); } catch { return null; }
+}
+function show(id)  { document.getElementById(id).style.display = 'flex'; }
+function hide(id)  { document.getElementById(id).style.display = 'none'; }
+
+async function initFirebase(cfg) {
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(cfg);
+    db = firebase.firestore();
+    hide('screen-setup');
+    document.getElementById('screen-form').style.display = 'block';
+    buildForm();
+    return true;
+  } catch(e) {
+    console.error(e);
+    return false;
+  }
+}
+
+async function saveSetupConfig() {
+  const cfg = {
+    apiKey:            document.getElementById('cfg_apiKey').value.trim(),
+    authDomain:        document.getElementById('cfg_authDomain').value.trim(),
+    projectId:         document.getElementById('cfg_projectId').value.trim(),
+    storageBucket:     document.getElementById('cfg_storageBucket').value.trim(),
+    messagingSenderId: document.getElementById('cfg_messagingSenderId').value.trim(),
+    appId:             document.getElementById('cfg_appId').value.trim(),
+  };
+  if (!cfg.projectId || !cfg.apiKey) {
+    const el = document.getElementById('setupErr');
+    el.textContent = '請至少填寫 API Key 與 Project ID';
+    el.style.display = 'block';
+    return;
+  }
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
+  const ok = await initFirebase(cfg);
+  if (!ok) {
+    const el = document.getElementById('setupErr');
+    el.textContent = '❌ 連線失敗，請確認設定是否正確';
+    el.style.display = 'block';
+  }
+}
+
+// =====================================================================
+// Score Calculation
+// =====================================================================
+function calcScore() {
+  return KPI_CONFIG.reduce((sum, cat) =>
+    sum + cat.items.reduce((s, it) =>
+      s + (parseInt(document.getElementById('kpi_'+it.key)?.value) || 0) * it.pts, 0), 0);
+}
+
+// =====================================================================
+// Build KPI Form
+// =====================================================================
+function buildForm() {
+  // Year options
+  const now = new Date();
+  const yearSel = document.getElementById('formYear');
+  yearSel.innerHTML = '';
+  for (let y = now.getFullYear(); y >= now.getFullYear() - 1; y--)
+    yearSel.add(new Option(y + '年', y));
+  yearSel.value = now.getFullYear();
+  document.getElementById('formMonth').value = now.getMonth() + 1;
+
+  // KPI sections
+  document.getElementById('kpiSections').innerHTML = KPI_CONFIG.map(cat => `
+    <div class="kpi-section">
+      <div class="kpi-cat-header">
+        <span>${cat.icon} ${cat.category}</span>
+        <span class="kpi-cat-score" id="catScore_${cat.items[0].key}">0 分</span>
+      </div>
+      ${cat.items.map(it => `
+        <div class="kpi-item">
+          <div class="kpi-item-info">
+            <span class="kpi-item-label">${it.label}</span>
+            <span class="kpi-item-pts" style="background:${cat.color}18;color:${cat.color}">+${it.pts} 分／次</span>
+          </div>
+          <div class="kpi-ctrl">
+            <button type="button" class="qty-btn" onclick="adj('${it.key}',-1)">−</button>
+            <input type="number" id="kpi_${it.key}" class="qty-input" value="0" min="0" max="99" oninput="updateScore()">
+            <button type="button" class="qty-btn" onclick="adj('${it.key}',1)">+</button>
+          </div>
+        </div>`).join('')}
+    </div>`).join('');
+
+  updateScore();
+}
+
+function adj(key, delta) {
+  const el = document.getElementById('kpi_' + key);
+  el.value = Math.max(0, (parseInt(el.value) || 0) + delta);
+  updateScore();
+}
+
+function onNameInput() { /* Could add validation later */ }
+
+function updateScore() {
+  const score = calcScore();
+
+  // Header score
+  const headerEl = document.getElementById('headerScore');
+  headerEl.textContent = score + ' 分';
+  headerEl.style.color = score >= 100 ? '#A7F3D0' : score >= 10 ? '#E0F2FE' : '#FECACA';
+
+  // Status chip
+  const chip = document.getElementById('statusChip');
+  const fill = document.getElementById('progressFill');
+  if (score >= 100) {
+    chip.className = 'status-chip chip-ok';
+    chip.textContent = '🎉 超額獎金！';
+    fill.style.width  = '100%';
+    fill.style.background = 'linear-gradient(90deg,#34D399,#059669)';
+  } else if (score >= 10) {
+    chip.className = 'status-chip chip-ok';
+    chip.textContent = '✅ 本月達標';
+    fill.style.width  = Math.min(score, 100) + '%';
+    fill.style.background = 'linear-gradient(90deg,#60A5FA,#2563EB)';
+  } else {
+    chip.className = 'status-chip chip-bad';
+    chip.textContent = `⚠ 未達標（${score}/10）`;
+    fill.style.width  = (score / 10 * 100) + '%';
+    fill.style.background = 'linear-gradient(90deg,#FCA5A5,#EF4444)';
+  }
+
+  // Per-category score
+  KPI_CONFIG.forEach(cat => {
+    const catTotal = cat.items.reduce((s, it) =>
+      s + (parseInt(document.getElementById('kpi_'+it.key)?.value)||0)*it.pts, 0);
+    const el = document.getElementById('catScore_' + cat.items[0].key);
+    if (el) {
+      el.textContent = catTotal > 0 ? `${catTotal} 分` : '0 分';
+      el.style.color = catTotal > 0 ? cat.color : '#6B7280';
+    }
+  });
+}
+
+// =====================================================================
+// Submit
+// =====================================================================
+async function submitReport() {
+  const name  = (document.getElementById('partnerName').value || '').trim();
+  const year  = parseInt(document.getElementById('formYear').value);
+  const month = parseInt(document.getElementById('formMonth').value);
+  const MONTH_NAMES = ['一','二','三','四','五','六','七','八','九','十','十一','十二'];
+
+  if (!name) {
+    alert('請填寫您的全名後再送出');
+    document.getElementById('partnerName').focus();
+    return;
+  }
+  if (!db) { alert('Firebase 尚未連線，請稍後再試'); return; }
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span>⏳</span> 送出中...';
+
+  const items = {};
+  KPI_CONFIG.forEach(cat => cat.items.forEach(it => {
+    items[it.key] = parseInt(document.getElementById('kpi_' + it.key)?.value) || 0;
+  }));
+  const totalScore = calcScore();
+  const now = new Date();
+
+  try {
+    // Check for existing report (same name + year + month)
+    const existing = await db.collection('fm_reports')
+      .where('partnerName', '==', name)
+      .where('year', '==', year)
+      .where('month', '==', month)
+      .get();
+
+    const reportData = {
+      partnerName: name,
+      year, month,
+      submittedAt:    firebase.firestore.FieldValue.serverTimestamp(),
+      submittedAtStr: now.toLocaleString('zh-TW'),
+      items,
+      notes:      document.getElementById('formNotes').value.trim(),
+      totalScore,
+    };
+
+    if (!existing.empty) {
+      // Overwrite existing
+      const confirmed = confirm(`您在 ${year}年${MONTH_NAMES[month-1]}月 已有一份月報（${existing.docs[0].data().totalScore}分），是否覆蓋更新？`);
+      if (!confirmed) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>📤</span> 送出本月月報';
+        return;
+      }
+      await existing.docs[0].ref.set(reportData);
+    } else {
+      await db.collection('fm_reports').add(reportData);
+    }
+
+    showSuccess(name, year, month, totalScore);
+  } catch(e) {
+    console.error(e);
+    alert('送出失敗：' + e.message);
+    btn.disabled = false;
+    btn.innerHTML = '<span>📤</span> 送出本月月報';
+  }
+}
+
+function showSuccess(name, year, month, score) {
+  const MONTH_NAMES = ['一','二','三','四','五','六','七','八','九','十','十一','十二'];
+  const isBonus  = score >= 100;
+  const isOk     = score >= 10;
+
+  document.getElementById('successIcon').textContent = isBonus ? '🎉' : isOk ? '✅' : '📋';
+  document.getElementById('successTitle').textContent = isBonus ? '超額達成！本月獎金到手！' : isOk ? '月報提交成功！' : '月報提交成功';
+  document.getElementById('successSub').textContent  = `${name} · ${year}年${MONTH_NAMES[month-1]}月月報已同步至管理後台`;
+
+  const scoreEl = document.getElementById('successScore');
+  scoreEl.textContent = score + ' 分';
+  scoreEl.style.color = isBonus ? '#059669' : isOk ? '#2563EB' : '#DC2626';
+
+  const labelEl = document.getElementById('successScoreLabel');
+  labelEl.textContent = isBonus ? '🎉 超額100分！獲得額外獎金' : isOk ? '✅ 本月達標（≥10分）' : '⚠ 本月未達標（最低10分）';
+
+  // Milestone hint
+  let extra = '';
+  if (isBonus) extra = `<div style="background:#FEF9C3;border-radius:10px;padding:12px 14px;text-align:center;font-size:13px;color:#92400E;font-weight:600;">🌟 月超100分達成！系統已通知管理員</div>`;
+  document.getElementById('successExtra').innerHTML = extra;
+
+  document.getElementById('screen-form').style.display = 'none';
+  document.getElementById('screen-success').style.display = 'flex';
+}
+
+function resetForm() {
+  // Reset all inputs
+  document.getElementById('partnerName').value = '';
+  document.getElementById('formNotes').value   = '';
+  KPI_CONFIG.forEach(cat => cat.items.forEach(it => {
+    const el = document.getElementById('kpi_' + it.key);
+    if (el) el.value = 0;
+  }));
+  updateScore();
+  document.getElementById('screen-success').style.display = 'none';
+  document.getElementById('screen-form').style.display    = 'block';
+  window.scrollTo(0, 0);
+}
+
+// =====================================================================
+// Bootstrap — Firebase Config 已內建，開啟即自動連線
+// =====================================================================
+const HARDCODED_CONFIG = {
+  apiKey:            "AIzaSyDiRwM6F8460pzxBYmFR7Q5dLACYZnHY1E",
+  authDomain:        "empoyee-8b6f4.firebaseapp.com",
+  projectId:         "empoyee-8b6f4",
+  storageBucket:     "empoyee-8b6f4.firebasestorage.app",
+  messagingSenderId: "179116677015",
+  appId:             "1:179116677015:web:a8eae95f5285473fcfd6d2"
+};
+
+(async function() {
+  const ok = await initFirebase(HARDCODED_CONFIG);
+  if (!ok) {
+    document.getElementById('screen-setup').style.display = 'flex';
+  }
+})();
+</script>
+</body>
+</html>
